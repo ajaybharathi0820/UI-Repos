@@ -1,0 +1,91 @@
+.polisher-dropdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 280px;
+}
+
+.polisher-dropdown label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 0.25rem;
+}
+
+.polisher-select {
+  position: relative;
+}
+
+.polisher-select select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: white;
+  font-size: 1rem;
+  color: var(--gray-900);
+  transition: all 0.2s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25rem;
+  padding-right: 3rem;
+}
+
+.polisher-select select:focus {
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  outline: none;
+}
+
+.polisher-select select:hover {
+  border-color: var(--gray-300);
+}
+
+.polisher-select select option {
+  padding: 0.5rem;
+}
+
+/* Selected state indicator */
+.polisher-select.has-selection select {
+  border-color: var(--primary-500);
+  background-color: var(--primary-50);
+}
+
+/* Status indicator */
+.polisher-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.polisher-status.selected {
+  color: var(--success-600);
+}
+
+.polisher-status.unselected {
+  color: var(--gray-500);
+}
+
+.status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+
+.status-dot.selected {
+  background-color: var(--success-500);
+}
+
+.status-dot.unselected {
+  background-color: var(--gray-300);
+}
+
+@media (max-width: 640px) {
+  .polisher-dropdown {
+    min-width: 100%;
+  }
+}
