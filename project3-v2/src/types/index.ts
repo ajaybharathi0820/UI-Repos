@@ -15,6 +15,8 @@ export interface MaterialEntry {
   itemCode: string;
   itemName: string;
   bagType: string;
+  // Optional id for the selected bag type to support API payloads
+  bagTypeId?: string;
   bagWeight: number;
   dozens: number;
   grossWeight: number;

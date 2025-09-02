@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
@@ -9,7 +9,7 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { MaterialEntry } from '../../types';
-import { bagTypes, items, polishers } from '../../data/mockData';
+import { bagTypes, items } from '../../data/mockData';
 import { calculateTolerance, ToleranceResult } from '../../utils/toleranceCalculator';
 
 const schema = yup.object({
@@ -25,7 +25,7 @@ const schema = yup.object({
 
 interface MaterialEntryFormData {
   itemCode: string;
-  bagType: string;
+  bagType: string; // stores bagTypeId as string
   dozens: number;
   grossWeight: number;
 }
@@ -33,9 +33,12 @@ interface MaterialEntryFormData {
 interface MaterialEntryFormProps {
   selectedPolisher: { id: string; name: string } | null;
   onSubmit: (data: MaterialEntry) => void;
+  // BLE integration
+  scaleEnabled?: boolean;
+  scaleWeight?: number;
 }
 
-export function MaterialEntryForm({ selectedPolisher, onSubmit }: MaterialEntryFormProps) {
+export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, scaleWeight }: MaterialEntryFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [toleranceModal, setToleranceModal] = useState<{
     isOpen: boolean;
@@ -56,7 +59,7 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit }: MaterialEntryF
     searchText: `${item.code} ${item.name}`,
   }));
 
-  // Convert bag types to select options
+  // Convert bag types to select options (value=id, label=name + weight)
   const bagTypeOptions = bagTypes.map(bagType => ({
     value: bagType.id.toString(),
     label: `${bagType.type} (${bagType.weight}kg)`,
@@ -88,6 +91,13 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit }: MaterialEntryF
   };
 
   const toleranceInfo = calculateToleranceInfo();
+
+  // When BLE scale is enabled and updates, set the grossWeight field
+  useEffect(() => {
+    if (scaleEnabled && typeof scaleWeight === 'number' && !Number.isNaN(scaleWeight)) {
+      setValue('grossWeight', Number(scaleWeight.toFixed(3)));
+    }
+  }, [scaleEnabled, scaleWeight, setValue]);
 
   const checkTolerance = (data: MaterialEntryFormData) => {
     const selectedItem = items.find(item => item.code === data.itemCode);
@@ -146,6 +156,7 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit }: MaterialEntryF
         itemCode: data.itemCode,
         itemName: selectedItem.name,
         bagType: selectedBagType.type,
+        bagTypeId: selectedBagType.id.toString(),
         bagWeight: selectedBagType.weight,
         dozens: data.dozens,
         grossWeight: data.grossWeight,
@@ -252,6 +263,7 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit }: MaterialEntryF
               min="0.001"
               placeholder="Enter gross weight"
               required
+              disabled={!!scaleEnabled}
               {...register('grossWeight', { valueAsNumber: true })}
               error={errors.grossWeight?.message}
             />

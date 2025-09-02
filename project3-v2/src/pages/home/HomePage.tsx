@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { FileText, Save, ArrowRight } from 'lucide-react';
 import { Layout } from '../../components/layout/Layout';
@@ -6,10 +6,11 @@ import { MaterialEntryForm } from './MaterialEntryForm';
 import { MaterialEntryTable } from './MaterialEntryTable';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
-import { MaterialEntry } from '../../types';
-import { polishers } from '../../data/mockData';
+import { MaterialEntry, PolisherAssignmentRequest } from '../../types';
+import { polishers, bagTypes } from '../../data/mockData';
 import { generatePDFReport } from '../../utils/pdfGenerator';
 import ApiService from '../../services/api';
+import { useBluetoothScale } from '../../hooks/useBluetoothScale';
 
 export function HomePage() {
   const [step, setStep] = useState<'select-polisher' | 'material-entry'>('select-polisher');
@@ -18,6 +19,7 @@ export function HomePage() {
   const [entries, setEntries] = useState<MaterialEntry[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const { enabled: scaleEnabled, setEnabled: setScaleEnabled, status: scaleStatus, weight: scaleWeight, isSupported: scaleSupported, error: scaleError } = useBluetoothScale();
 
   // Convert polishers to select options
   const polisherOptions = polishers.map(polisher => ({
@@ -74,36 +76,29 @@ export function HomePage() {
 
     setIsSaving(true);
     try {
-      // Prepare the API request in the specified format
-      const requestData = {
+      const requestData: PolisherAssignmentRequest = {
         polisherAssignment: {
           polisherId: selectedPolisher.id,
           polisherName: selectedPolisher.name,
-          createdBy: "ak",
-          items: entries.map(entry => ({
-            productId: entry.id,
+          createdBy: 'ak',
+          items: entries.map((entry) => ({
+            productId: entry.itemCode,
             productCode: entry.itemCode,
             productName: entry.itemName,
-            bagTypeId: entry.bagType,
+            bagTypeId: entry.bagTypeId ?? (bagTypes.find((b) => b.type === entry.bagType)?.id?.toString() || ''),
             bagTypeName: entry.bagType,
             bagWeight: entry.bagWeight,
             dozens: entry.dozens,
             totalWeight: entry.grossWeight,
             productAvgWeight: entry.productAvgWeight,
-            toleranceDiff: entry.toleranceDiff
-          }))
-        }
+            toleranceDiff: entry.toleranceDiff,
+          })),
+        },
       };
 
-      // Mock API call to save all entries
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
-      
-      // In a real app, this would be:
-      // await ApiService.saveMaterialEntries(requestData);
-      
-      console.log('API Request Data:', JSON.stringify(requestData, null, 2));
-      
-      toast.success(`Successfully saved ${entries.length} material entries for ${selectedPolisher.name}!`);
+      await ApiService.savePolisherAssignment(requestData);
+
+      toast.success(`Saved ${entries.length} entries for ${selectedPolisher.name}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save entries';
       toast.error(message);
@@ -147,9 +142,8 @@ export function HomePage() {
                   label="Polisher"
                   required
                   options={polisherOptions}
-                 value={selectedPolisherId}
-                 onChange={(e) => handlePolisherChange(e.target.value)}
-                  onChange={handlePolisherChange}
+                  value={selectedPolisherId}
+                  onChange={(e) => handlePolisherChange((e.target as HTMLSelectElement).value)}
                 />
                 
                 <Button
@@ -186,10 +180,38 @@ export function HomePage() {
               </div>
             </div>
 
+            {/* BLE Scale Toggle + Status (desktop/tablet toolbar) */}
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center gap-3">
+                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={scaleEnabled}
+                    onChange={(e) => setScaleEnabled(e.target.checked)}
+                    disabled={!scaleSupported}
+                  />
+                  Use Bluetooth Scale
+                </label>
+                <span className="text-sm text-gray-500">
+                  {!scaleSupported && 'Not supported in this browser'}
+                  {scaleSupported && scaleStatus === 'idle' && 'Manual mode'}
+                  {scaleSupported && scaleStatus === 'connecting' && 'Connecting…'}
+                  {scaleSupported && scaleStatus === 'connected' && `Connected ${typeof scaleWeight === 'number' ? `· ${scaleWeight.toFixed(3)} kg` : ''}`}
+                  {scaleSupported && scaleStatus === 'error' && 'Connection error'}
+                </span>
+              </div>
+              {scaleError && (
+                <span className="text-sm text-red-600">{scaleError}</span>
+              )}
+            </div>
+
             {/* Material Entry Form */}
             <MaterialEntryForm 
               selectedPolisher={selectedPolisher}
-              onSubmit={handleAddEntry} 
+              onSubmit={handleAddEntry}
+              scaleEnabled={scaleEnabled}
+              scaleWeight={scaleWeight ?? undefined}
             />
             
             {/* Action Buttons */}

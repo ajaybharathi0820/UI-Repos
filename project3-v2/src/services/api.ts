@@ -1,4 +1,5 @@
 const API_BASE_URL = 'https://stockmate.com/v1';
+import type { MaterialEntry, PolisherAssignmentRequest } from '../types';
 
 export class ApiService {
   private static async request<T>(
@@ -78,6 +79,14 @@ export class ApiService {
     return this.request('/polisher-assignments', {
       method: 'POST',
       body: JSON.stringify(entries),
+    });
+  }
+  
+  // New: Save polisher assignment with structured payload
+  static async savePolisherAssignment(data: PolisherAssignmentRequest) {
+    return this.request('/polisher-assignments', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   }
   // Generic CRUD operations
