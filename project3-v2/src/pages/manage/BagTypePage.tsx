@@ -23,7 +23,7 @@ const validationSchema = yup.object({
 export function BagTypePage() {
   return (
     <CrudPage
-      entityType="bag-type"
+      entityType="BagType"
       entityName="Bag Type"
       fields={fields}
       validationSchema={validationSchema}

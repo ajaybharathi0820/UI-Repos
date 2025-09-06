@@ -28,7 +28,7 @@ const validationSchema = yup.object({
 export function UserPage() {
   return (
     <CrudPage
-      entityType="user"
+      entityType="Users"
       entityName="User"
       fields={fields}
       validationSchema={validationSchema}

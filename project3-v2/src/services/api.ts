@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://stockmate.com/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://stockmate.com/v1';
 import type { MaterialEntry, PolisherAssignmentRequest } from '../types';
 
 export class ApiService {
@@ -35,48 +35,28 @@ export class ApiService {
 
   // Auth
   static async login(credentials: { username: string; password: string }) {
-    return this.request('/auth/login', {
+  return this.request('/api/Users/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
   }
 
   static async logout() {
-    return this.request('/auth/logout', { method: 'POST' });
+  // No explicit logout endpoint in API; handle client-side
+  return Promise.resolve();
   }
 
   static async changePassword(data: { currentPassword: string; newPassword: string }) {
-    return this.request('/auth/change-password', {
+  return this.request('/api/Users/change-password', {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   }
 
-  // Material Entries
-  static async getMaterialEntries() {
-    return this.request('/material-entries');
-  }
-
-  static async createMaterialEntry(data: Partial<MaterialEntry>) {
-    return this.request('/material-entries', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  static async updateMaterialEntry(id: string, data: Partial<MaterialEntry>) {
-    return this.request(`/material-entries/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-  }
-
-  static async deleteMaterialEntry(id: string) {
-    return this.request(`/material-entries/${id}`, { method: 'DELETE' });
-  }
+  // Material Entries methods removed. Add them back if you implement MaterialEntries endpoints in your API.
 
   static async saveMaterialEntries(entries: MaterialEntry[]) {
-    return this.request('/polisher-assignments', {
+  return this.request('/api/PolisherAssignments', {
       method: 'POST',
       body: JSON.stringify(entries),
     });
@@ -84,32 +64,32 @@ export class ApiService {
   
   // New: Save polisher assignment with structured payload
   static async savePolisherAssignment(data: PolisherAssignmentRequest) {
-    return this.request('/polisher-assignments', {
+  return this.request('/api/PolisherAssignments', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
   // Generic CRUD operations
   static async getEntities(entityType: string) {
-    return this.request(`/${entityType}`);
+  return this.request(`/api/${entityType}`);
   }
 
   static async createEntity(entityType: string, data: any) {
-    return this.request(`/${entityType}`, {
+  return this.request(`/api/${entityType}`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
   static async updateEntity(entityType: string, id: string, data: any) {
-    return this.request(`/${entityType}/${id}`, {
+  return this.request(`/api/${entityType}/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   }
 
   static async deleteEntity(entityType: string, id: string) {
-    return this.request(`/${entityType}/${id}`, { method: 'DELETE' });
+  return this.request(`/api/${entityType}/${id}`, { method: 'DELETE' });
   }
 }
 
