@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './context/AuthContext';
@@ -6,6 +5,8 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/auth/LoginPage';
 import { ChangePasswordPage } from './pages/auth/ChangePasswordPage';
 import { HomePage } from './pages/home/HomePage';
+import AssignmentDetailsPage from './pages/assignments/AssignmentDetailsPage';
+import NewAssignmentPage from './pages/assignments/NewAssignmentPage';
 import { ManagePage } from './pages/manage/ManagePage';
 import { PolisherPage } from './pages/manage/PolisherPage';
 import { UserPage } from './pages/manage/UserPage';
@@ -22,6 +23,16 @@ function App() {
             <Route path="/" element={
               <ProtectedRoute>
                 <HomePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/assignments/new" element={
+              <ProtectedRoute>
+                <NewAssignmentPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/assignments/:id" element={
+              <ProtectedRoute>
+                <AssignmentDetailsPage />
               </ProtectedRoute>
             } />
             <Route path="/change-password" element={
