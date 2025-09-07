@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -25,33 +25,45 @@ export function LoginPage() {
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [expired, setExpired] = useState<boolean>(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: yupResolver(schema),
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const expiredParam = params.get('expired');
+    const expiredFlag = localStorage.getItem('session_expired');
+    if (expiredParam === '1' || expiredFlag === '1') {
+      setExpired(true);
+      localStorage.removeItem('session_expired');
+    }
+  }, [location.search]);
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
     setServerError('');
     
     try {
-     // const response = await ApiService.login(data);
+      console.log('Attempting login with:', { username: data.username });
+  const response = await ApiService.login(data);
+  console.log('Login response:', response);
+
+  // Store token immediately so subsequent calls include Authorization header
+  localStorage.setItem('auth_token', response.token);
+
+  // Fetch the complete user details using the username (now authenticated)
+  const fullUser = await ApiService.getCurrentUser(response.userName);
+      console.log('Full user details:', fullUser);
       
-      // Mock successful login for demo
-      const mockUser = {
-        id: '1',
-        username: data.username,
-        email: `${data.username}@stockmate.com`,
-      };
-      
-      const mockToken = 'mock-jwt-token';
-      
-      login(mockUser, mockToken);
+      login(fullUser, response.token);
       toast.success('Login successful!');
       
       const from = location.state?.from?.pathname || '/';
       navigate(from, { replace: true });
     } catch (error) {
+      console.error('Login error:', error);
       const message = error instanceof Error ? error.message : 'Login failed';
       setServerError(message);
       toast.error(message);
@@ -73,6 +85,11 @@ export function LoginPage() {
 
         <div className="bg-white py-8 px-6 shadow-xl rounded-xl border border-gray-100">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {expired && (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
+                Session expired. Please sign in again.
+              </div>
+            )}
             {serverError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {serverError}
@@ -110,7 +127,7 @@ export function LoginPage() {
 
         <div className="text-center">
           <p className="text-sm text-gray-500">
-            Demo credentials: admin / password
+            Demo credentials: admin / Admin@123
           </p>
         </div>
       </div>

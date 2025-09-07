@@ -1,7 +1,13 @@
 export interface User {
   id: string;
-  username: string;
+  firstName: string;
+  lastName: string;
+  userName: string;
+  age: number;
   email: string;
+  role: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AuthState {
@@ -10,32 +16,29 @@ export interface AuthState {
   isLoading: boolean;
 }
 
-export interface MaterialEntry {
+export interface LoginRequest {
+  userName: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  userName: string;
+  role: string;
+}
+
+export interface Role {
   id: string;
-  itemCode: string;
-  itemName: string;
-  bagType: string;
-  // Optional id for the selected bag type to support API payloads
-  bagTypeId?: string;
-  bagWeight: number;
-  dozens: number;
-  grossWeight: number;
-  netWeight: number;
-  expectedWeight: number;
-  toleranceStatus: 'within' | 'below' | 'above';
-  polisherId: string | null;
-  polisherName: string | null;
-  productAvgWeight: number;
-  toleranceDiff: number;
-  createdAt: string;
-  updatedAt: string;
+  name: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Polisher {
   id: string;
-  name: string;
-  code: string;
-  status: 'active' | 'inactive';
+  firstName: string;
+  lastName: string;
+  contactNumber: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,21 +46,46 @@ export interface Polisher {
 export interface BagType {
   id: string;
   name: string;
-  code: string;
-  expectedWeight: number;
-  tolerance: number;
+  weight: number;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface Item {
+export interface Product {
   id: string;
+  productCode: string;
   name: string;
-  code: string;
-  category: string;
-  description?: string;
+  weight: number;
   createdAt: string;
   updatedAt: string;
+}
+
+// Form data interfaces (what the UI uses)
+export interface UserFormData {
+  firstName: string;
+  lastName: string;
+  username: string;
+  email: string;
+  password: string;
+  dateOfBirth: string;
+  role: string;
+}
+
+export interface PolisherFormData {
+  firstName: string;
+  lastName: string;
+  contactNumber: string;
+}
+
+export interface BagTypeFormData {
+  name: string;
+  weight: number;
+}
+
+export interface ProductFormData {
+  productCode: string;
+  name: string;
+  weight: number;
 }
 
 export interface ApiResponse<T> {
