@@ -7,16 +7,15 @@ import { MaterialEntry } from '../../types';
 
 interface MaterialEntryTableProps {
   entries: MaterialEntry[];
-  onUpdate: (entry: MaterialEntry) => void;
   onDelete: (id: string) => void;
+  onEdit: (entry: MaterialEntry) => void; // new: request parent-driven edit via form
 }
 
-export function MaterialEntryTable({ entries, onUpdate, onDelete }: MaterialEntryTableProps) {
-  const [editingEntry, setEditingEntry] = useState<MaterialEntry | null>(null);
+export function MaterialEntryTable({ entries, onDelete, onEdit }: MaterialEntryTableProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; itemCode: string } | null>(null);
 
   const handleEdit = (entry: MaterialEntry) => {
-    setEditingEntry(entry);
+    onEdit(entry);
   };
 
   const handleDelete = async (id: string) => {
@@ -29,23 +28,7 @@ export function MaterialEntryTable({ entries, onUpdate, onDelete }: MaterialEntr
     }
   };
 
-  const getToleranceStatusColor = (status: string) => {
-    switch (status) {
-      case 'within': return 'text-green-700 bg-green-100';
-      case 'below': return 'text-red-700 bg-red-100';
-      case 'above': return 'text-orange-700 bg-orange-100';
-      default: return 'text-gray-700 bg-gray-100';
-    }
-  };
-
-  const getToleranceStatusText = (status: string) => {
-    switch (status) {
-      case 'within': return 'Within Tolerance';
-      case 'below': return 'Below Tolerance';
-      case 'above': return 'Above Tolerance';
-      default: return 'Unknown';
-    }
-  };
+  // removed status helpers; we now display numeric tolerance difference
 
   if (entries.length === 0) {
     return (
@@ -66,9 +49,7 @@ export function MaterialEntryTable({ entries, onUpdate, onDelete }: MaterialEntr
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Polisher
-                </th>
+                
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Item Code
                 </th>
@@ -91,7 +72,7 @@ export function MaterialEntryTable({ entries, onUpdate, onDelete }: MaterialEntr
                   Expected (kg)
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tolerance Status
+                  Tolerance Diff (kg)
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Date Added
@@ -104,9 +85,7 @@ export function MaterialEntryTable({ entries, onUpdate, onDelete }: MaterialEntr
             <tbody className="bg-white divide-y divide-gray-200">
               {entries.map((entry) => (
                 <tr key={entry.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {entry.polisherName || '-'}
-                  </td>
+                  
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {entry.itemCode}
                   </td>
@@ -128,10 +107,8 @@ export function MaterialEntryTable({ entries, onUpdate, onDelete }: MaterialEntr
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {entry.expectedWeight.toFixed(3)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getToleranceStatusColor(entry.toleranceStatus)}`}>
-                      {getToleranceStatusText(entry.toleranceStatus)}
-                    </span>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {(entry.toleranceDiff >= 0 ? '+' : '') + entry.toleranceDiff.toFixed(3)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(entry.createdAt).toLocaleDateString()}
@@ -189,6 +166,8 @@ export function MaterialEntryTable({ entries, onUpdate, onDelete }: MaterialEntr
           </div>
         </div>
       </Modal>
+
+  {/* Editing is done via the form above; no inline edit modal */}
     </>
   );
 }

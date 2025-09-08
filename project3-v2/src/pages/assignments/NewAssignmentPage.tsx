@@ -21,6 +21,7 @@ export default function NewAssignmentPage() {
   const [selectedPolisherId, setSelectedPolisherId] = useState<string>('');
   const [selectedPolisher, setSelectedPolisher] = useState<{ id: string; name: string } | null>(null);
   const [entries, setEntries] = useState<MaterialEntry[]>([]);
+  const [editingEntry, setEditingEntry] = useState<MaterialEntry | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const { enabled: scaleEnabled, setEnabled: setScaleEnabled, status: scaleStatus, weight: scaleWeight, isSupported: scaleSupported, error: scaleError } = useBluetoothScale();
@@ -70,7 +71,61 @@ export default function NewAssignmentPage() {
     setEntries([]);
   };
 
-  const handleAddEntry = (newEntry: MaterialEntry) => setEntries(prev => [newEntry, ...prev]);
+  const handleAddEntry = (newEntry: MaterialEntry) =>
+    setEntries(prev => {
+      // find existing by product and bag type
+      const matchIndex = prev.findIndex(e =>
+        (e.itemId && newEntry.itemId ? e.itemId === newEntry.itemId : e.itemCode === newEntry.itemCode) &&
+        e.bagTypeId === newEntry.bagTypeId
+      );
+
+      if (matchIndex === -1) {
+        return [newEntry, ...prev];
+      }
+
+      const existing = prev[matchIndex];
+
+      // aggregate values
+      const combinedDozens = existing.dozens + newEntry.dozens;
+      const combinedGross = existing.grossWeight + newEntry.grossWeight;
+      const combinedBagWeight = existing.bagWeight + newEntry.bagWeight; // sum bag weights
+      const combinedNet = combinedGross - combinedBagWeight;
+      const productAvgWeight = existing.productAvgWeight; // standard weight
+      const expected = combinedDozens * productAvgWeight;
+      const allowedDeviation = expected * 0.02;
+      const difference = combinedNet - expected;
+      const avgWeight = combinedDozens > 0 ? combinedNet / combinedDozens : 0;
+      const toleranceDiff = avgWeight - productAvgWeight;
+      const toleranceStatus: MaterialEntry['toleranceStatus'] =
+        difference < -allowedDeviation ? 'below' : difference > allowedDeviation ? 'above' : 'within';
+
+      const updated: MaterialEntry = {
+        ...existing,
+        dozens: combinedDozens,
+        grossWeight: combinedGross,
+        bagWeight: combinedBagWeight,
+        netWeight: combinedNet,
+        avgWeight,
+        expectedWeight: expected,
+        toleranceStatus,
+        toleranceDiff,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const newList = [...prev];
+      newList[matchIndex] = updated;
+      return newList;
+    });
+
+  const handleEditStart = (entry: MaterialEntry) => {
+    setEditingEntry(entry);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleUpdateEntryFromForm = (updated: MaterialEntry) => {
+    setEntries(prev => prev.map(e => e.id === (editingEntry?.id ?? updated.id) ? { ...updated, id: e.id } : e));
+    setEditingEntry(null);
+  };
   const handleUpdateEntry = (updatedEntry: MaterialEntry) => setEntries(prev => prev.map(e => e.id === updatedEntry.id ? updatedEntry : e));
   const handleDeleteEntry = async (id: string) => { await new Promise(r => setTimeout(r, 300)); setEntries(prev => prev.filter(e => e.id !== id)); };
 
@@ -96,7 +151,8 @@ export default function NewAssignmentPage() {
             netWeight: entry.netWeight || (entry.grossWeight - (entry.bagWeight * entry.dozens)), // Calculate net weight
             avgWeight: entry.avgWeight || (entry.grossWeight / entry.dozens), // Calculate avg weight
             productAvgWeight: entry.productAvgWeight,
-            toleranceDiff: entry.toleranceDiff,
+            // Ensure toleranceDiff is limited to 3 decimals in the payload
+            toleranceDiff: Number(entry.toleranceDiff.toFixed(3)),
           })),
         },
       };
@@ -195,7 +251,13 @@ export default function NewAssignmentPage() {
               {scaleError && <span className="text-sm text-red-600">{scaleError}</span>}
             </div>
 
-            <MaterialEntryForm selectedPolisher={selectedPolisher} onSubmit={handleAddEntry} scaleEnabled={scaleEnabled} scaleWeight={scaleWeight ?? undefined} />
+            <MaterialEntryForm 
+              selectedPolisher={selectedPolisher}
+              onSubmit={editingEntry ? handleUpdateEntryFromForm : handleAddEntry}
+              scaleEnabled={scaleEnabled}
+              scaleWeight={scaleWeight ?? undefined}
+              initialEntry={editingEntry ?? undefined}
+            />
 
             {entries.length > 0 && (
               <div className="flex justify-end space-x-4">
@@ -210,7 +272,7 @@ export default function NewAssignmentPage() {
               </div>
             )}
 
-            <MaterialEntryTable entries={entries} onUpdate={handleUpdateEntry} onDelete={handleDeleteEntry} />
+            <MaterialEntryTable entries={entries} onDelete={handleDeleteEntry} onEdit={handleEditStart} />
           </>
         )}
       </div>

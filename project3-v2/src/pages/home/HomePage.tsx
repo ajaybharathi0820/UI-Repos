@@ -5,7 +5,7 @@ import { Select } from '../../components/ui/Select';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import type { PolisherAssignment, Polisher } from '../../types';
+import type { PolisherAssignment, Polisher, User } from '../../types';
 import ApiService from '../../services/api';
 
 export function HomePage() {
@@ -14,6 +14,7 @@ export function HomePage() {
   const [polishers, setPolishers] = useState<Polisher[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
+  const [usersMap, setUsersMap] = useState<Record<string, string>>({});
   
   const [search, setSearch] = useState('');
   const [polisherId, setPolisherId] = useState<string>('');
@@ -25,18 +26,39 @@ export function HomePage() {
     [polishers]
   );
 
-  // Load polishers and initial assignments
+  // Helper to format date as YYYY-MM-DD
+  const fmt = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  // Load polishers, users map, and initial assignments (default last month)
   useEffect(() => {
     const loadInitialData = async () => {
       try {
         setIsLoading(true);
         
-        // Load polishers for filter dropdown
-        const polishersData = await ApiService.getPolishers();
+        // Load polishers and users for mapping
+        const [polishersData, users] = await Promise.all([
+          ApiService.getPolishers(),
+          ApiService.getUsers()
+        ]);
         setPolishers(polishersData);
+        const map: Record<string, string> = {};
+        (users as User[]).forEach(u => { map[u.id] = `${u.firstName} ${u.lastName}`.trim(); });
+        setUsersMap(map);
         
-        // Load initial assignments (no filters)
-        await searchAssignments({});
+        // Default search: last month to today
+        const toDate = new Date();
+        const fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 1);
+        const fromStr = fmt(fromDate);
+        const toStr = fmt(toDate);
+        setFrom(fromStr);
+        setTo(toStr);
+  await searchAssignments({ fromDate: fromStr, toDate: toStr });
         
       } catch (error) {
         console.error('Failed to load initial data:', error);
@@ -53,11 +75,18 @@ export function HomePage() {
   const searchAssignments = async (criteria: any) => {
     try {
       setIsSearching(true);
+      const toIso = (d: string, end = false) => {
+        if (!d) return undefined;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+          return end ? `${d}T23:59:59.999Z` : `${d}T00:00:00.000Z`;
+        }
+        return d;
+      };
       const searchQuery = {
         criteria: {
           ...(criteria.polisherId && { polisherId: criteria.polisherId }),
-          ...(criteria.fromDate && { fromDate: criteria.fromDate }),
-          ...(criteria.toDate && { toDate: criteria.toDate }),
+          ...(criteria.fromDate && { fromDate: toIso(criteria.fromDate, false) }),
+          ...(criteria.toDate && { toDate: toIso(criteria.toDate, true) }),
         }
       };
       
@@ -140,7 +169,7 @@ export function HomePage() {
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search by assignment id, polisher, item…"
+                placeholder="Search by polisher, item…"
                 className="w-full rounded-md border px-3 py-2"
               />
             </div>
@@ -198,7 +227,6 @@ export function HomePage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assignment ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Polisher</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Items</th>
@@ -212,17 +240,16 @@ export function HomePage() {
                     className="hover:bg-gray-50 cursor-pointer"
                     onClick={() => navigate(`/assignments/${encodeURIComponent(assignment.id)}`)}
                   >
-                    <td className="px-6 py-3 font-medium text-gray-900">{assignment.id}</td>
                     <td className="px-6 py-3 text-gray-700">{assignment.polisherName}</td>
                     <td className="px-6 py-3 text-gray-700">{new Date(assignment.createdDate).toLocaleString()}</td>
                     <td className="px-6 py-3 text-gray-700">{assignment.items.length}</td>
-                    <td className="px-6 py-3 text-gray-700">{assignment.createdBy}</td>
+                    <td className="px-6 py-3 text-gray-700">{usersMap[assignment.createdBy] || assignment.createdBy}</td>
                   </tr>
                 ))}
 
                 {filteredAssignments.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
                       {isSearching ? 'Searching...' : 'No assignments found.'}
                     </td>
                   </tr>

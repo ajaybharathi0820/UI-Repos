@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { FileText } from 'lucide-react';
-import type { PolisherAssignment } from '../../types';
+import type { PolisherAssignment, User } from '../../types';
 import ApiService from '../../services/api';
 import { generatePDFReport } from '../../utils/pdfGenerator';
 
@@ -15,6 +15,7 @@ export default function AssignmentDetailsPage() {
   const [assignment, setAssignment] = useState<PolisherAssignment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [createdByName, setCreatedByName] = useState<string>('');
 
   useEffect(() => {
     const loadAssignment = async () => {
@@ -27,6 +28,15 @@ export default function AssignmentDetailsPage() {
         setIsLoading(true);
         const assignmentData = await ApiService.getPolisherAssignmentById(id);
         setAssignment(assignmentData);
+        // map createdBy to name if possible
+        try {
+          const users = await ApiService.getUsers();
+          const map: Record<string, string> = {};
+          (users as User[]).forEach(u => { map[u.id] = `${u.firstName} ${u.lastName}`.trim(); });
+          setCreatedByName(map[assignmentData.createdBy] || assignmentData.createdBy);
+        } catch {
+          setCreatedByName(assignmentData.createdBy);
+        }
       } catch (error) {
         console.error('Failed to load assignment:', error);
         toast.error('Failed to load assignment details');
@@ -103,9 +113,9 @@ export default function AssignmentDetailsPage() {
       <div className="space-y-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Assignment {assignment.id}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Polisher Assignment</h1>
             <p className="text-gray-600">
-              Polisher: <span className="font-medium">{assignment.polisherName}</span> · Date: {new Date(assignment.createdDate).toLocaleString()} · Created by: {assignment.createdBy}
+              Polisher: <span className="font-medium">{assignment.polisherName}</span> · Date: {new Date(assignment.createdDate).toLocaleString()} · Created by: {createdByName}
             </p>
           </div>
           <div className="flex gap-2">

@@ -29,8 +29,8 @@ export async function generatePDFReport(
   // Table headers
   const startY = 60;
   const rowHeight = 8;
-  const colWidths = [25, 25, 30, 20, 25, 25, 30];
-  const headers = ['Item Code', 'Item Name', 'Bag Type', 'Dozens', 'Gross (kg)', 'Net (kg)', 'Status'];
+  const colWidths = [25, 25, 30, 20, 25, 25];
+  const headers = ['Item Code', 'Item Name', 'Bag Type', 'Dozens', 'Gross (kg)', 'Net (kg)'];
   
   pdf.setFontSize(10);
   pdf.setFont('helvetica', 'bold');
@@ -61,9 +61,7 @@ export async function generatePDFReport(
       entry.bagType,
       entry.dozens.toString(),
       entry.grossWeight.toFixed(3),
-      entry.netWeight.toFixed(3),
-      entry.toleranceStatus === 'within' ? 'OK' : 
-      entry.toleranceStatus === 'below' ? 'LOW' : 'HIGH'
+      entry.netWeight.toFixed(3)
     ];
     
     rowData.forEach((data, colIndex) => {

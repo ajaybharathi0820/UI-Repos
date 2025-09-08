@@ -37,9 +37,10 @@ interface MaterialEntryFormProps {
   // BLE integration
   scaleEnabled?: boolean;
   scaleWeight?: number;
+  initialEntry?: MaterialEntry;
 }
 
-export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, scaleWeight }: MaterialEntryFormProps) {
+export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, scaleWeight, initialEntry }: MaterialEntryFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [bagTypes, setBagTypes] = useState<BagType[]>([]);
@@ -50,7 +51,7 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
     data?: MaterialEntryFormData;
   }>({ isOpen: false });
 
-  const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<MaterialEntryFormData>({
+  const { register, handleSubmit, formState: { errors }, reset, resetField, watch, setValue } = useForm<MaterialEntryFormData>({
     resolver: yupResolver(schema),
   });
 
@@ -80,6 +81,18 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
 
     loadData();
   }, []);
+
+  // Prefill when editing
+  useEffect(() => {
+    if (initialEntry) {
+      reset({
+        itemCode: initialEntry.itemCode,
+        bagType: initialEntry.bagTypeId,
+        dozens: initialEntry.dozens,
+        grossWeight: initialEntry.grossWeight,
+      });
+    }
+  }, [initialEntry, reset]);
 
   // Convert products to searchable options
   const itemOptions = products.map(product => ({
@@ -119,6 +132,23 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
   };
 
   const toleranceInfo = calculateToleranceInfo();
+
+  // Clear form function
+  const clearForm = () => {
+    resetField('itemCode');
+    setValue('itemCode', '');
+    resetField('bagType');
+    setValue('bagType', '');
+    resetField('dozens');
+    setValue('dozens', undefined as any);
+    resetField('grossWeight');
+    setValue('grossWeight', undefined as any);
+    
+    // If BLE scale is enabled and has a reading, repopulate grossWeight from scale
+    if (scaleEnabled && typeof scaleWeight === 'number' && !Number.isNaN(scaleWeight)) {
+      setValue('grossWeight', Number(scaleWeight.toFixed(3)));
+    }
+  };
 
   // When BLE scale is enabled and updates, set the grossWeight field
   useEffect(() => {
@@ -176,12 +206,13 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
         selectedProduct.weight
       );
 
-      // Calculate productAvgWeight and toleranceDiff as per requirements
-      const productAvgWeight = data.grossWeight / data.dozens;
-      const toleranceDiff = productAvgWeight - selectedProduct.weight;
+      // Calculate avgWeight and toleranceDiff as per requirements
+      const avgWeight = toleranceResult.netWeight / data.dozens; // Actual average weight per piece
+      const productAvgWeight = selectedProduct.weight; // Standard weight from product master
+      const toleranceDiff = avgWeight - selectedProduct.weight; // Difference between actual and standard
       
       const newEntry: MaterialEntry = {
-        id: Date.now().toString(),
+        id: initialEntry?.id ?? Date.now().toString(),
         itemId: selectedProduct.id, // Add product ID
         itemCode: data.itemCode,
         itemName: selectedProduct.name,
@@ -191,22 +222,23 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
         dozens: data.dozens,
         grossWeight: data.grossWeight,
         netWeight: toleranceResult.netWeight,
-        avgWeight: productAvgWeight,
+        avgWeight: avgWeight,
         expectedWeight: toleranceResult.expectedWeight,
         toleranceStatus: toleranceResult.status,
         polisherId: selectedPolisher.id,
         polisherName: selectedPolisher.name,
         productAvgWeight,
         toleranceDiff,
-        createdAt: new Date().toISOString(),
+        createdAt: initialEntry?.createdAt ?? new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
       await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
       
       onSubmit(newEntry);
-      toast.success('Material entry added successfully!');
-      reset();
+      toast.success(initialEntry ? 'Material entry updated successfully!' : 'Material entry added successfully!');
+      // Clear the form after both add and edit
+      clearForm();
       setToleranceModal({ isOpen: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to add material entry';
@@ -345,10 +377,14 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
           {toleranceInfo && (
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
               <h3 className="text-sm font-medium text-gray-900">Tolerance Check</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">Net Weight:</span>
                   <span className="ml-2 font-medium">{toleranceInfo.netWeight.toFixed(3)}kg</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Avg Weight:</span>
+                  <span className="ml-2 font-medium">{(toleranceInfo.netWeight / watchedValues.dozens).toFixed(3)}kg</span>
                 </div>
                 <div>
                   <span className="text-gray-600">Expected:</span>
@@ -368,13 +404,20 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
             </div>
           )}
 
-          <div className="flex justify-end">
+          <div className="flex justify-end space-x-3">
+            <Button
+              variant="secondary"
+              onClick={clearForm}
+              disabled={isLoading}
+            >
+              Clear Fields
+            </Button>
             <Button
               type="submit"
               loading={isLoading}
               className="px-8"
             >
-              Add Entry
+              {initialEntry ? 'Update Entry' : 'Add Entry'}
             </Button>
           </div>
         </form>
