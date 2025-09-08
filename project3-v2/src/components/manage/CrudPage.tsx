@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { Edit2, Trash2, Plus, Search, Key } from 'lucide-react';
+import { Edit2, Trash2, Plus, Search, Key, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Layout } from '../layout/Layout';
 import { Button } from '../ui/Button';
@@ -9,6 +9,7 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Modal } from '../ui/Modal';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
+import { Pagination } from '../ui/Pagination';
 import ApiService from '../../services/api';
 import type { User, Polisher, BagType, Product } from '../../types';
 import { useNavigate } from 'react-router-dom';
@@ -38,6 +39,11 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingEntity, setEditingEntity] = useState<any | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  
   const navigate = useNavigate();
 
   // Support dynamic schema based on whether we are editing or creating
@@ -81,7 +87,8 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
       setFilteredEntities(entities);
     } catch (error) {
       console.error('Failed to load entities:', error);
-      toast.error(`Failed to load ${entityName.toLowerCase()}s`);
+      const message = error instanceof Error ? error.message : `Failed to load ${entityName.toLowerCase()}s`;
+      toast.error(message);
       // Set empty arrays on error so UI shows "no records found"
       setEntities([]);
       setFilteredEntities([]);
@@ -103,7 +110,14 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
       );
       setFilteredEntities(filtered);
     }
+    setCurrentPage(1); // Reset to first page when search changes
   }, [searchTerm, entities, fields]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredEntities.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedEntities = filteredEntities.slice(startIndex, endIndex);
 
   useEffect(() => {
     loadEntities();
@@ -178,10 +192,15 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
       reset();
     } catch (error) {
       console.error('Failed to save entity:', error);
-      toast.error(`Failed to save ${entityName.toLowerCase()}`);
+      const message = error instanceof Error ? error.message : `Failed to save ${entityName.toLowerCase()}`;
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const clearForm = () => {
+    reset();
   };
 
   const handleEdit = (entity: any) => {
@@ -240,7 +259,8 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
       setDeleteConfirm(null);
     } catch (error) {
       console.error('Failed to delete entity:', error);
-      toast.error(`Failed to delete ${entityName.toLowerCase()}`);
+      const message = error instanceof Error ? error.message : `Failed to delete ${entityName.toLowerCase()}`;
+      toast.error(message);
     }
   };
 
@@ -304,7 +324,8 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
       setResetPwd('');
       setResetPwd2('');
     } catch (e) {
-      toast.error('Failed to reset password');
+      const message = e instanceof Error ? e.message : 'Failed to reset password';
+      toast.error(message);
     } finally {
       setIsResetting(false);
     }
@@ -323,25 +344,51 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
             <h2 className="text-lg font-semibold text-gray-900">
               {editingEntity ? `Edit ${entityName}` : `Add New ${entityName}`}
             </h2>
-            {editingEntity && (
-              <Button variant="ghost" onClick={cancelEdit}>
-                Cancel
-              </Button>
-            )}
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {fields.map(renderField)}
             
             <div className="md:col-span-2 lg:col-span-3 flex justify-end space-x-3">
-              <Button
-                type="submit"
-                loading={isSubmitting}
-                className="px-6"
-              >
-                <Plus size={16} className="mr-2" />
-                {editingEntity ? 'Update' : 'Add'} {entityName}
-              </Button>
+              {editingEntity ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={cancelEdit}
+                    disabled={isSubmitting}
+                  >
+                    <X size={16} className="mr-2" />
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    loading={isSubmitting}
+                    className="px-6"
+                  >
+                    Update {entityName}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={clearForm}
+                    disabled={isSubmitting}
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    type="submit"
+                    loading={isSubmitting}
+                    className="px-6"
+                  >
+                    <Plus size={16} className="mr-2" />
+                    Add {entityName}
+                  </Button>
+                </>
+              )}
             </div>
           </form>
         </div>
@@ -378,73 +425,83 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {fields.map(field => (
-                      <th
-                        key={field.name}
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        {field.label}
-                      </th>
-                    ))}
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredEntities.map((entity) => (
-                    <tr key={entity.id} className="hover:bg-gray-50">
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
                       {fields.map(field => (
-                        <td key={field.name} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {field.type === 'password' ? '••••••••' : 
-                           field.name === 'username' && entity.userName ? entity.userName :
-                           field.name === 'dateOfBirth' ? (entity.dateOfBirth || 'N/A') :
-                           field.name === 'role' && field.options ? 
-                             (field.options.find(opt => opt.value === entity.role)?.label || entity.role) :
-                           (entity[field.name] || 'N/A')}
-                        </td>
+                        <th
+                          key={field.name}
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          {field.label}
+                        </th>
                       ))}
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end space-x-2">
-                          {entityType === 'user' && (
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {paginatedEntities.map((entity) => (
+                      <tr key={entity.id} className="hover:bg-gray-50">
+                        {fields.map(field => (
+                          <td key={field.name} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {field.type === 'password' ? '••••••••' : 
+                             field.name === 'username' && entity.userName ? entity.userName :
+                             field.name === 'dateOfBirth' ? (entity.dateOfBirth || 'N/A') :
+                             field.name === 'role' && field.options ? 
+                               (field.options.find(opt => opt.value === entity.role)?.label || entity.role) :
+                             (entity[field.name] || 'N/A')}
+                          </td>
+                        ))}
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end space-x-2">
+                            {entityType === 'user' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                title="Reset Password"
+                                onClick={() => setResetUser({ id: entity.id, name: entity.userName || entity.firstName || entity.id })}
+                              >
+                                <Key size={16} className="text-indigo-600" />
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
-                              title="Reset Password"
-                              onClick={() => setResetUser({ id: entity.id, name: entity.userName || entity.firstName || entity.id })}
+                              onClick={() => handleEdit(entity)}
                             >
-                              <Key size={16} className="text-indigo-600" />
+                              <Edit2 size={16} />
                             </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEdit(entity)}
-                          >
-                            <Edit2 size={16} />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setDeleteConfirm({ 
-                              id: entity.id, 
-                              name: entity.firstName ? `${entity.firstName} ${entity.lastName}` : 
-                                    entity.name || entity.productCode || entity.code || entity.userName || entity.id 
-                            })}
-                          >
-                            <Trash2 size={16} className="text-red-600" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setDeleteConfirm({ 
+                                id: entity.id, 
+                                name: entity.firstName ? `${entity.firstName} ${entity.lastName}` : 
+                                      entity.name || entity.productCode || entity.code || entity.userName || entity.id 
+                              })}
+                            >
+                              <Trash2 size={16} className="text-red-600" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalItems={filteredEntities.length}
+                itemsPerPage={itemsPerPage}
+              />
+            </>
           )}
         </div>
       </div>

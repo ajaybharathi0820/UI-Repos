@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
+import { Pagination } from '../../components/ui/Pagination';
 import { MaterialEntry } from '../../types';
 
 interface MaterialEntryTableProps {
@@ -13,6 +14,21 @@ interface MaterialEntryTableProps {
 
 export function MaterialEntryTable({ entries, onDelete, onEdit }: MaterialEntryTableProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; itemCode: string } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Pagination calculations
+  const totalPages = Math.ceil(entries.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedEntries = useMemo(() => entries.slice(startIndex, endIndex), [entries, startIndex, endIndex]);
+
+  // Reset to first page when entries change
+  React.useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [entries.length, currentPage, totalPages]);
 
   const handleEdit = (entry: MaterialEntry) => {
     onEdit(entry);
@@ -83,7 +99,7 @@ export function MaterialEntryTable({ entries, onDelete, onEdit }: MaterialEntryT
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {entries.map((entry) => (
+              {paginatedEntries.map((entry) => (
                 <tr key={entry.id} className="hover:bg-gray-50">
                   
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -137,6 +153,16 @@ export function MaterialEntryTable({ entries, onDelete, onEdit }: MaterialEntryT
           </table>
         </div>
       </div>
+
+      {entries.length > itemsPerPage && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={entries.length}
+          itemsPerPage={itemsPerPage}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       <Modal

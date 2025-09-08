@@ -80,7 +80,7 @@ export function Navbar() {
                 <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center">
                   <User size={16} className="text-white" />
                 </div>
-                <span>{user?.username}</span>
+                <span>{user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}</span>
                 <ChevronDown size={16} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 

@@ -60,8 +60,8 @@ export function LoginPage() {
       login(fullUser, response.token);
       toast.success('Login successful!');
       
-      const from = location.state?.from?.pathname || '/';
-      navigate(from, { replace: true });
+      // Always redirect to home page after login, regardless of previous location
+      navigate('/', { replace: true });
     } catch (error) {
       console.error('Login error:', error);
       const message = error instanceof Error ? error.message : 'Login failed';

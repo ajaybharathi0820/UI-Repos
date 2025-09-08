@@ -1,7 +1,8 @@
 import { Layout } from '../../components/layout/Layout';
 import { Button } from '../../components/ui/Button';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
-import { useState, useEffect } from 'react';
+import { Pagination } from '../../components/ui/Pagination';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { FileText } from 'lucide-react';
@@ -16,6 +17,17 @@ export default function AssignmentDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [createdByName, setCreatedByName] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Pagination calculations
+  const totalPages = assignment ? Math.ceil(assignment.items.length / itemsPerPage) : 0;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedItems = useMemo(() => 
+    assignment ? assignment.items.slice(startIndex, endIndex) : [], 
+    [assignment?.items, startIndex, endIndex]
+  );
 
   useEffect(() => {
     const loadAssignment = async () => {
@@ -148,7 +160,7 @@ export default function AssignmentDetailsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {assignment.items.map(item => (
+                {paginatedItems.map(item => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-6 py-3 font-medium text-gray-900">{item.productCode}</td>
                     <td className="px-6 py-3 text-gray-700">{item.productName}</td>
@@ -169,7 +181,7 @@ export default function AssignmentDetailsPage() {
                     </td>
                   </tr>
                 ))}
-                {assignment.items.length === 0 && (
+                {assignment && assignment.items.length === 0 && (
                   <tr>
                     <td className="px-6 py-8 text-center text-gray-500" colSpan={9}>No items in this assignment</td>
                   </tr>
@@ -178,6 +190,16 @@ export default function AssignmentDetailsPage() {
             </table>
           </div>
         </div>
+
+        {assignment && assignment.items.length > itemsPerPage && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={assignment.items.length}
+            itemsPerPage={itemsPerPage}
+          />
+        )}
       </div>
     </Layout>
   );

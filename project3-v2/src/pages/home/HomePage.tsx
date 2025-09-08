@@ -3,6 +3,7 @@ import { Layout } from '../../components/layout/Layout';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
+import { Pagination } from '../../components/ui/Pagination';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { PolisherAssignment, Polisher, User } from '../../types';
@@ -15,6 +16,10 @@ export function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [usersMap, setUsersMap] = useState<Record<string, string>>({});
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   
   const [search, setSearch] = useState('');
   const [polisherId, setPolisherId] = useState<string>('');
@@ -62,7 +67,8 @@ export function HomePage() {
         
       } catch (error) {
         console.error('Failed to load initial data:', error);
-        toast.error('Failed to load data');
+        const message = error instanceof Error ? error.message : 'Failed to load data';
+        toast.error(message);
         setAssignments([]);
       } finally {
         setIsLoading(false);
@@ -94,7 +100,8 @@ export function HomePage() {
       setAssignments(results || []);
     } catch (error) {
       console.error('Failed to search assignments:', error);
-      toast.error('Failed to search assignments');
+      const message = error instanceof Error ? error.message : 'Failed to search assignments';
+      toast.error(message);
       setAssignments([]);
     } finally {
       setIsSearching(false);
@@ -137,6 +144,12 @@ export function HomePage() {
       return inHeader || inItems;
     });
   }, [assignments, search]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredAssignments.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedAssignments = filteredAssignments.slice(startIndex, endIndex);
 
   if (isLoading) {
     return (
@@ -234,7 +247,7 @@ export function HomePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredAssignments.map(assignment => (
+                {paginatedAssignments.map(assignment => (
                   <tr
                     key={assignment.id}
                     className="hover:bg-gray-50 cursor-pointer"
@@ -258,6 +271,16 @@ export function HomePage() {
             </table>
           </div>
         </div>
+
+        {filteredAssignments.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filteredAssignments.length}
+            itemsPerPage={itemsPerPage}
+          />
+        )}
       </div>
     </Layout>
   );
