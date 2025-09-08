@@ -147,6 +147,14 @@ export class ApiService {
     });
   }
 
+  static async resetUserPassword(userId: string, newPassword: string, confirmPassword: string) {
+    const command = { userId, newPassword, confirmPassword };
+    return this.request('/api/users/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(command),
+    });
+  }
+
   // Roles
   static async getRoles(): Promise<Role[]> {
     return this.request('/api/roles');
@@ -173,14 +181,20 @@ export class ApiService {
   }
 
   static async createUser(data: UserFormData): Promise<User> {
-    // Convert date of birth to age
-    const age = new Date().getFullYear() - new Date(data.dateOfBirth).getFullYear();
-    
+    // Ensure dateOfBirth is in proper ISO format for backend DateTime parsing
+    let dateOfBirth = data.dateOfBirth;
+    if (typeof dateOfBirth === 'string') {
+      // If it's in YYYY-MM-DD format, convert to ISO string with time
+      if (dateOfBirth.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        dateOfBirth = `${dateOfBirth}T00:00:00.000Z`;
+      }
+    }
+
     const command = {
       firstName: data.firstName,
       lastName: data.lastName,
       userName: data.username,
-      age: age,
+      dateOfBirth: dateOfBirth,
       email: data.email,
       password: data.password,
       roleId: data.role // Use the actual role ID from the dropdown
@@ -194,14 +208,21 @@ export class ApiService {
   }
 
   static async updateUser(id: string, data: Partial<UserFormData>): Promise<User> {
-    const age = data.dateOfBirth ? new Date().getFullYear() - new Date(data.dateOfBirth).getFullYear() : undefined;
-    
+    // Ensure dateOfBirth is in proper ISO format for backend DateTime parsing
+    let dateOfBirth = data.dateOfBirth;
+    if (typeof dateOfBirth === 'string') {
+      // If it's in YYYY-MM-DD format, convert to ISO string with time
+      if (dateOfBirth.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        dateOfBirth = `${dateOfBirth}T00:00:00.000Z`;
+      }
+    }
+
     const command = {
       id: id,
       firstName: data.firstName,
       lastName: data.lastName,
       userName: data.username,
-      age: age,
+      dateOfBirth: dateOfBirth,
       email: data.email,
       ...(data.password && { password: data.password }),
       roleId: data.role // Use the actual role ID from the dropdown
@@ -393,14 +414,14 @@ export class ApiService {
     return id;
   }
 
-  static async getPolisherAssignmentById(id: string) {
+  static async getPolisherAssignmentById(id: string): Promise<any> {
     return this.request(`/api/polisherassignments/${id}`);
   }
 
-  static async searchPolisherAssignments(filters: any) {
+  static async searchPolisherAssignments(searchCriteria: any): Promise<any[]> {
     return this.request('/api/polisherassignments/search', {
       method: 'POST',
-      body: JSON.stringify(filters),
+      body: JSON.stringify(searchCriteria),
     });
   }
 }

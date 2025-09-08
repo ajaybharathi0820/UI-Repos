@@ -3,7 +3,7 @@ export interface User {
   firstName: string;
   lastName: string;
   userName: string;
-  age: number;
+  dateOfBirth: string;
   email: string;
   role: string;
   createdAt?: string;
@@ -103,7 +103,6 @@ export interface PolisherAssignmentRequest {
   polisherAssignment: {
     polisherId: string;
     polisherName: string;
-    createdBy: string;
     items: {
       productId: string;
       productCode: string;
@@ -113,8 +112,67 @@ export interface PolisherAssignmentRequest {
       bagWeight: number;
       dozens: number;
       totalWeight: number;
+      netWeight: number;
+      avgWeight: number;
       productAvgWeight: number;
       toleranceDiff: number;
     }[];
   };
+}
+
+export interface PolisherAssignmentItem {
+  id: string;
+  assignmentId: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  bagTypeId: string;
+  bagTypeName: string;
+  bagWeight: number;
+  dozens: number;
+  totalWeight: number;
+  netWeight: number;
+  avgWeight: number;
+  productAvgWeight: number;
+  toleranceDiff: number;
+}
+
+export interface PolisherAssignment {
+  id: string;
+  polisherId: string;
+  polisherName: string;
+  createdDate: string;
+  createdBy: string;
+  items: PolisherAssignmentItem[];
+}
+
+export interface PolisherAssignmentSearch {
+  criteria: {
+    polisherId?: string;
+    productId?: string;
+    fromDate?: string;
+    toDate?: string;
+  };
+}
+
+export interface MaterialEntry {
+  id: string;
+  itemId?: string; // Product ID
+  itemCode: string;
+  itemName: string;
+  bagType: string;
+  bagTypeId: string;
+  bagWeight: number;
+  dozens: number;
+  grossWeight: number;
+  netWeight: number;
+  avgWeight: number;
+  expectedWeight: number;
+  toleranceStatus: 'within' | 'below' | 'above';
+  polisherId: string;
+  polisherName: string;
+  productAvgWeight: number;
+  toleranceDiff: number;
+  createdAt: string;
+  updatedAt: string;
 }

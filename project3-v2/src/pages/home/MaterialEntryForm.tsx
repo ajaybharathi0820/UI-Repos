@@ -8,9 +8,10 @@ import { Select } from '../../components/ui/Select';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
-import { MaterialEntry } from '../../types';
-import { bagTypes, items } from '../../data/mockData';
+import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
+import { MaterialEntry, Product, BagType } from '../../types';
 import { calculateTolerance, ToleranceResult } from '../../utils/toleranceCalculator';
+import ApiService from '../../services/api';
 
 const schema = yup.object({
   itemCode: yup.string().required('Item is required'),
@@ -40,6 +41,9 @@ interface MaterialEntryFormProps {
 
 export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, scaleWeight }: MaterialEntryFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [bagTypes, setBagTypes] = useState<BagType[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [toleranceModal, setToleranceModal] = useState<{
     isOpen: boolean;
     result?: ToleranceResult;
@@ -52,33 +56,57 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
 
   const watchedValues = watch();
 
-  // Convert items to searchable options
-  const itemOptions = items.map(item => ({
-    value: item.code,
-    label: `${item.code} - ${item.name}`,
-    searchText: `${item.code} ${item.name}`,
+  // Load products and bag types from API
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoadingData(true);
+        const [productsData, bagTypesData] = await Promise.all([
+          ApiService.getProducts(),
+          ApiService.getBagTypes()
+        ]);
+        
+        setProducts(productsData);
+        setBagTypes(bagTypesData);
+      } catch (error) {
+        console.error('Failed to load products and bag types:', error);
+        toast.error('Failed to load products and bag types');
+        setProducts([]);
+        setBagTypes([]);
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Convert products to searchable options
+  const itemOptions = products.map(product => ({
+    value: product.productCode,
+    label: `${product.productCode} - ${product.name}`,
+    searchText: `${product.productCode} ${product.name}`,
   }));
 
   // Convert bag types to select options (value=id, label=name + weight)
   const bagTypeOptions = bagTypes.map(bagType => ({
-    value: bagType.id.toString(),
-    label: `${bagType.type} (${bagType.weight}kg)`,
+    value: bagType.id,
+    label: `${bagType.name} (${bagType.weight}kg)`,
   }));
 
-  const getSelectedItem = () => {
-    return items.find(item => item.code === watchedValues.itemCode);
+  const getSelectedProduct = () => {
+    return products.find(product => product.productCode === watchedValues.itemCode);
   };
 
   const getSelectedBagType = () => {
-    const bagTypeId = parseInt(watchedValues.bagType);
-    return bagTypes.find(bagType => bagType.id === bagTypeId);
+    return bagTypes.find(bagType => bagType.id === watchedValues.bagType);
   };
 
   const calculateToleranceInfo = () => {
-    const selectedItem = getSelectedItem();
+    const selectedProduct = getSelectedProduct();
     const selectedBagType = getSelectedBagType();
     
-    if (!selectedItem || !selectedBagType || !watchedValues.dozens || !watchedValues.grossWeight) {
+    if (!selectedProduct || !selectedBagType || !watchedValues.dozens || !watchedValues.grossWeight) {
       return null;
     }
 
@@ -86,7 +114,7 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
       watchedValues.grossWeight,
       selectedBagType.weight,
       watchedValues.dozens,
-      selectedItem.standardWeight
+      selectedProduct.weight // Use product weight as standard weight
     );
   };
 
@@ -100,16 +128,16 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
   }, [scaleEnabled, scaleWeight, setValue]);
 
   const checkTolerance = (data: MaterialEntryFormData) => {
-    const selectedItem = items.find(item => item.code === data.itemCode);
-    const selectedBagType = bagTypes.find(bagType => bagType.id === parseInt(data.bagType));
+    const selectedProduct = products.find(product => product.productCode === data.itemCode);
+    const selectedBagType = bagTypes.find(bagType => bagType.id === data.bagType);
     
-    if (!selectedItem || !selectedBagType) return true;
+    if (!selectedProduct || !selectedBagType) return true;
 
     const result = calculateTolerance(
       data.grossWeight,
       selectedBagType.weight,
       data.dozens,
-      selectedItem.standardWeight
+      selectedProduct.weight
     );
 
     if (result.status !== 'within') {
@@ -134,33 +162,36 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
     setIsLoading(true);
     
     try {
-      const selectedItem = items.find(item => item.code === data.itemCode);
-      const selectedBagType = bagTypes.find(bagType => bagType.id === parseInt(data.bagType));
+      const selectedProduct = products.find(product => product.productCode === data.itemCode);
+      const selectedBagType = bagTypes.find(bagType => bagType.id === data.bagType);
       
-      if (!selectedItem || !selectedBagType || !selectedPolisher) {
-        throw new Error('Invalid item, bag type, or polisher selection');
+      if (!selectedProduct || !selectedBagType || !selectedPolisher) {
+        throw new Error('Invalid product, bag type, or polisher selection');
       }
 
       const toleranceResult = calculateTolerance(
         data.grossWeight,
         selectedBagType.weight,
         data.dozens,
-        selectedItem.standardWeight
+        selectedProduct.weight
       );
 
       // Calculate productAvgWeight and toleranceDiff as per requirements
       const productAvgWeight = data.grossWeight / data.dozens;
-      const toleranceDiff = productAvgWeight - selectedItem.standardWeight;
+      const toleranceDiff = productAvgWeight - selectedProduct.weight;
+      
       const newEntry: MaterialEntry = {
         id: Date.now().toString(),
+        itemId: selectedProduct.id, // Add product ID
         itemCode: data.itemCode,
-        itemName: selectedItem.name,
-        bagType: selectedBagType.type,
-        bagTypeId: selectedBagType.id.toString(),
+        itemName: selectedProduct.name,
+        bagType: selectedBagType.name,
+        bagTypeId: selectedBagType.id,
         bagWeight: selectedBagType.weight,
         dozens: data.dozens,
         grossWeight: data.grossWeight,
         netWeight: toleranceResult.netWeight,
+        avgWeight: productAvgWeight,
         expectedWeight: toleranceResult.expectedWeight,
         toleranceStatus: toleranceResult.status,
         polisherId: selectedPolisher.id,
@@ -210,6 +241,47 @@ export function MaterialEntryForm({ selectedPolisher, onSubmit, scaleEnabled, sc
         <div className="text-center py-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Select a Polisher</h2>
           <p className="text-gray-600">Please select a polisher first to start adding material entries.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoadingData) {
+    return (
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <div className="text-center py-8">
+          <LoadingSpinner size="lg" />
+          <p className="mt-4 text-gray-600">Loading products and bag types...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (products.length === 0 || bagTypes.length === 0) {
+    return (
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <div className="text-center py-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Missing Data</h2>
+          <p className="text-gray-600 mb-4">
+            {products.length === 0 && bagTypes.length === 0 
+              ? 'No products and bag types found. Please add them first.'
+              : products.length === 0 
+              ? 'No products found. Please add products first.'
+              : 'No bag types found. Please add bag types first.'
+            }
+          </p>
+          <div className="space-x-2">
+            {products.length === 0 && (
+              <Button variant="secondary" onClick={() => window.open('/manage/items', '_blank')}>
+                Manage Products
+              </Button>
+            )}
+            {bagTypes.length === 0 && (
+              <Button variant="secondary" onClick={() => window.open('/manage/bag-type', '_blank')}>
+                Manage Bag Types
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     );

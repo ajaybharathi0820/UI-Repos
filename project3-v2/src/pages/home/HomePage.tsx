@@ -1,61 +1,123 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Layout } from '../../components/layout/Layout';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
+import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { useNavigate } from 'react-router-dom';
-import { mockAssignments } from '../../data/mockAssignments';
-import { polishers } from '../../data/mockData';
-
-type Status = 'all' | 'open' | 'in-progress' | 'completed';
+import { toast } from 'sonner';
+import type { PolisherAssignment, Polisher } from '../../types';
+import ApiService from '../../services/api';
 
 export function HomePage() {
   const navigate = useNavigate();
+  const [assignments, setAssignments] = useState<PolisherAssignment[]>([]);
+  const [polishers, setPolishers] = useState<Polisher[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
+  
   const [search, setSearch] = useState('');
   const [polisherId, setPolisherId] = useState<string>('');
-  const [status, setStatus] = useState<Status>('all');
   const [from, setFrom] = useState<string>('');
   const [to, setTo] = useState<string>('');
 
   const polisherOptions = useMemo(
-    () => [{ value: '', label: 'All Polishers' }, ...polishers.map(p => ({ value: p.id.toString(), label: p.name }))],
-    []
+    () => [{ value: '', label: 'All Polishers' }, ...polishers.map(p => ({ value: p.id, label: `${p.firstName} ${p.lastName}` }))],
+    [polishers]
   );
 
-  const statusOptions = [
-    { value: 'all', label: 'All Status' },
-    { value: 'open', label: 'Open' },
-    { value: 'in-progress', label: 'In Progress' },
-    { value: 'completed', label: 'Completed' },
-  ];
-
-  const filtered = useMemo(() => {
-    const fromTs = from ? new Date(from).getTime() : null;
-    const toTs = to ? new Date(to).getTime() + 24 * 60 * 60 * 1000 - 1 : null;
-
-    return mockAssignments.filter(a => {
-      if (polisherId && a.polisherId !== polisherId) return false;
-      if (status !== 'all' && a.status !== status) return false;
-
-      const ts = new Date(a.date).getTime();
-      if (fromTs && ts < fromTs) return false;
-      if (toTs && ts > toTs) return false;
-
-      if (search.trim()) {
-        const q = search.trim().toLowerCase();
-        const inHeader =
-          a.id.toLowerCase().includes(q) ||
-          a.polisherName.toLowerCase().includes(q);
-        const inItems = a.entries.some(e =>
-          e.itemCode.toLowerCase().includes(q) ||
-          e.itemName.toLowerCase().includes(q) ||
-          e.bagType.toLowerCase().includes(q)
-        );
-        if (!inHeader && !inItems) return false;
+  // Load polishers and initial assignments
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Load polishers for filter dropdown
+        const polishersData = await ApiService.getPolishers();
+        setPolishers(polishersData);
+        
+        // Load initial assignments (no filters)
+        await searchAssignments({});
+        
+      } catch (error) {
+        console.error('Failed to load initial data:', error);
+        toast.error('Failed to load data');
+        setAssignments([]);
+      } finally {
+        setIsLoading(false);
       }
+    };
 
-      return true;
+    loadInitialData();
+  }, []);
+
+  const searchAssignments = async (criteria: any) => {
+    try {
+      setIsSearching(true);
+      const searchQuery = {
+        criteria: {
+          ...(criteria.polisherId && { polisherId: criteria.polisherId }),
+          ...(criteria.fromDate && { fromDate: criteria.fromDate }),
+          ...(criteria.toDate && { toDate: criteria.toDate }),
+        }
+      };
+      
+      const results = await ApiService.searchPolisherAssignments(searchQuery);
+      setAssignments(results || []);
+    } catch (error) {
+      console.error('Failed to search assignments:', error);
+      toast.error('Failed to search assignments');
+      setAssignments([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSearch = () => {
+    const criteria = {
+      ...(polisherId && { polisherId }),
+      ...(from && { fromDate: from }),
+      ...(to && { toDate: to }),
+    };
+    searchAssignments(criteria);
+  };
+
+  const handleClearFilters = () => {
+    setSearch('');
+    setPolisherId('');
+    setFrom('');
+    setTo('');
+    searchAssignments({});
+  };
+
+  // Filter assignments based on search term (client-side for text search)
+  const filteredAssignments = useMemo(() => {
+    if (!search.trim()) return assignments;
+    
+    const query = search.trim().toLowerCase();
+    return assignments.filter(assignment => {
+      const inHeader = 
+        assignment.id.toLowerCase().includes(query) ||
+        assignment.polisherName.toLowerCase().includes(query);
+        
+      const inItems = assignment.items.some(item =>
+        item.productCode.toLowerCase().includes(query) ||
+        item.productName.toLowerCase().includes(query) ||
+        item.bagTypeName.toLowerCase().includes(query)
+      );
+      
+      return inHeader || inItems;
     });
-  }, [search, polisherId, status, from, to]);
+  }, [assignments, search]);
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <LoadingSpinner size="lg" />
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -71,7 +133,7 @@ export function HomePage() {
         </div>
 
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
               <input
@@ -89,15 +151,6 @@ export function HomePage() {
                 options={polisherOptions}
                 value={polisherId}
                 onChange={(e) => setPolisherId((e.target as HTMLSelectElement).value)}
-              />
-            </div>
-
-            <div>
-              <Select
-                label="Status"
-                options={statusOptions}
-                value={status}
-                onChange={(e) => setStatus((e.target as HTMLSelectElement).value as Status)}
               />
             </div>
 
@@ -123,12 +176,19 @@ export function HomePage() {
             </div>
           </div>
 
-          <div className="mt-3 flex justify-end">
+          <div className="mt-3 flex justify-end space-x-2">
             <Button
               variant="secondary"
-              onClick={() => { setSearch(''); setPolisherId(''); setStatus('all'); setFrom(''); setTo(''); }}
+              onClick={handleClearFilters}
+              disabled={isSearching}
             >
               Clear Filters
+            </Button>
+            <Button
+              onClick={handleSearch}
+              loading={isSearching}
+            >
+              Search
             </Button>
           </div>
         </div>
@@ -142,39 +202,28 @@ export function HomePage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Polisher</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Items</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created By</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filtered.map(a => (
+                {filteredAssignments.map(assignment => (
                   <tr
-                    key={a.id}
+                    key={assignment.id}
                     className="hover:bg-gray-50 cursor-pointer"
-                    onClick={() => navigate(`/assignments/${encodeURIComponent(a.id)}`)}
+                    onClick={() => navigate(`/assignments/${encodeURIComponent(assignment.id)}`)}
                   >
-                    <td className="px-6 py-3 font-medium text-gray-900">{a.id}</td>
-                    <td className="px-6 py-3 text-gray-700">{a.polisherName}</td>
-                    <td className="px-6 py-3 text-gray-700">{new Date(a.date).toLocaleString()}</td>
-                    <td className="px-6 py-3 text-gray-700">{a.entries.length}</td>
-                    <td className="px-6 py-3">
-                      <span
-                        className={[
-                          'inline-flex items-center px-2 py-1 rounded text-xs font-medium',
-                          a.status === 'completed' ? 'bg-green-50 text-green-700' :
-                          a.status === 'in-progress' ? 'bg-yellow-50 text-yellow-700' :
-                          'bg-gray-100 text-gray-700',
-                        ].join(' ')}
-                      >
-                        {a.status}
-                      </span>
-                    </td>
+                    <td className="px-6 py-3 font-medium text-gray-900">{assignment.id}</td>
+                    <td className="px-6 py-3 text-gray-700">{assignment.polisherName}</td>
+                    <td className="px-6 py-3 text-gray-700">{new Date(assignment.createdDate).toLocaleString()}</td>
+                    <td className="px-6 py-3 text-gray-700">{assignment.items.length}</td>
+                    <td className="px-6 py-3 text-gray-700">{assignment.createdBy}</td>
                   </tr>
                 ))}
 
-                {filtered.length === 0 && (
+                {filteredAssignments.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                      No assignments found.
+                      {isSearching ? 'Searching...' : 'No assignments found.'}
                     </td>
                   </tr>
                 )}

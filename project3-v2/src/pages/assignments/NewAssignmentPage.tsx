@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { FileText, Save, ArrowRight } from 'lucide-react';
 import { Layout } from '../../components/layout/Layout';
@@ -6,8 +6,8 @@ import { MaterialEntryForm } from '../home/MaterialEntryForm';
 import { MaterialEntryTable } from '../home/MaterialEntryTable';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
-import { MaterialEntry, PolisherAssignmentRequest } from '../../types';
-import { polishers, bagTypes } from '../../data/mockData';
+import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
+import { MaterialEntry, PolisherAssignmentRequest, Polisher } from '../../types';
 import { generatePDFReport } from '../../utils/pdfGenerator';
 import ApiService from '../../services/api';
 import { useBluetoothScale } from '../../hooks/useBluetoothScale';
@@ -16,6 +16,8 @@ import { useNavigate } from 'react-router-dom';
 export default function NewAssignmentPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState<'select-polisher' | 'material-entry'>('select-polisher');
+  const [polishers, setPolishers] = useState<Polisher[]>([]);
+  const [isLoadingPolishers, setIsLoadingPolishers] = useState(true);
   const [selectedPolisherId, setSelectedPolisherId] = useState<string>('');
   const [selectedPolisher, setSelectedPolisher] = useState<{ id: string; name: string } | null>(null);
   const [entries, setEntries] = useState<MaterialEntry[]>([]);
@@ -23,14 +25,39 @@ export default function NewAssignmentPage() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const { enabled: scaleEnabled, setEnabled: setScaleEnabled, status: scaleStatus, weight: scaleWeight, isSupported: scaleSupported, error: scaleError } = useBluetoothScale();
 
-  const polisherOptions = polishers.map(polisher => ({ value: polisher.id.toString(), label: polisher.name }));
+  // Load polishers on component mount
+  useEffect(() => {
+    const loadPolishers = async () => {
+      try {
+        setIsLoadingPolishers(true);
+        const polishersData = await ApiService.getPolishers();
+        setPolishers(polishersData);
+      } catch (error) {
+        console.error('Failed to load polishers:', error);
+        toast.error('Failed to load polishers');
+        setPolishers([]);
+      } finally {
+        setIsLoadingPolishers(false);
+      }
+    };
+
+    loadPolishers();
+  }, []);
+
+  const polisherOptions = polishers.map(polisher => ({ 
+    value: polisher.id, 
+    label: `${polisher.firstName} ${polisher.lastName}` 
+  }));
 
   const handlePolisherChange = (value: string) => setSelectedPolisherId(value);
 
   const handleContinue = () => {
-    const polisher = polishers.find(p => p.id.toString() === selectedPolisherId);
+    const polisher = polishers.find(p => p.id === selectedPolisherId);
     if (polisher) {
-      setSelectedPolisher({ id: polisher.id.toString(), name: polisher.name });
+      setSelectedPolisher({ 
+        id: polisher.id, 
+        name: `${polisher.firstName} ${polisher.lastName}` 
+      });
       setStep('material-entry');
       setEntries([]);
     }
@@ -57,25 +84,28 @@ export default function NewAssignmentPage() {
         polisherAssignment: {
           polisherId: selectedPolisher.id,
           polisherName: selectedPolisher.name,
-          createdBy: 'ak',
           items: entries.map((entry) => ({
-            productId: entry.itemCode,
+            productId: entry.itemId || entry.itemCode, // Use itemId if available, fallback to itemCode
             productCode: entry.itemCode,
             productName: entry.itemName,
-            bagTypeId: entry.bagTypeId ?? (bagTypes.find((b: any) => (b.type ?? b.name) === entry.bagType)?.id?.toString() || ''),
+            bagTypeId: entry.bagTypeId || '', // Ensure we have the bag type ID
             bagTypeName: entry.bagType,
             bagWeight: entry.bagWeight,
             dozens: entry.dozens,
             totalWeight: entry.grossWeight,
+            netWeight: entry.netWeight || (entry.grossWeight - (entry.bagWeight * entry.dozens)), // Calculate net weight
+            avgWeight: entry.avgWeight || (entry.grossWeight / entry.dozens), // Calculate avg weight
             productAvgWeight: entry.productAvgWeight,
             toleranceDiff: entry.toleranceDiff,
           })),
         },
       };
+      
       await ApiService.savePolisherAssignment(requestData);
       toast.success(`Saved ${entries.length} entries for ${selectedPolisher.name}`);
       navigate('/');
     } catch (e: any) {
+      console.error('Failed to save assignment:', e);
       toast.error(e?.message ?? 'Failed to save entries');
     } finally {
       setIsSaving(false);
@@ -100,19 +130,38 @@ export default function NewAssignmentPage() {
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Select Polisher</h2>
                 <p className="text-gray-600">Choose a polisher to start adding material entries</p>
               </div>
-              <div className="space-y-4">
-                <Select
-                  label="Polisher"
-                  required
-                  options={polisherOptions}
-                  value={selectedPolisherId}
-                  onChange={(e) => handlePolisherChange((e.target as HTMLSelectElement).value)}
-                />
-                <Button onClick={handleContinue} disabled={!selectedPolisherId} className="w-full" size="lg">
-                  <ArrowRight size={20} className="mr-2" />
-                  Continue to Material Entry
-                </Button>
-              </div>
+              
+              {isLoadingPolishers ? (
+                <div className="py-8">
+                  <LoadingSpinner size="lg" />
+                  <p className="mt-4 text-gray-600">Loading polishers...</p>
+                </div>
+              ) : polishers.length === 0 ? (
+                <div className="py-8">
+                  <p className="text-gray-500">No polishers found. Please add polishers first.</p>
+                  <Button 
+                    onClick={() => navigate('/manage/polisher')} 
+                    variant="secondary" 
+                    className="mt-4"
+                  >
+                    Manage Polishers
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Select
+                    label="Polisher"
+                    required
+                    options={polisherOptions}
+                    value={selectedPolisherId}
+                    onChange={(e) => handlePolisherChange((e.target as HTMLSelectElement).value)}
+                  />
+                  <Button onClick={handleContinue} disabled={!selectedPolisherId} className="w-full" size="lg">
+                    <ArrowRight size={20} className="mr-2" />
+                    Continue to Material Entry
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         ) : (

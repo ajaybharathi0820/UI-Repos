@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { Edit2, Trash2, Plus, Search } from 'lucide-react';
+import { Edit2, Trash2, Plus, Search, Key } from 'lucide-react';
 import { toast } from 'sonner';
 import { Layout } from '../layout/Layout';
 import { Button } from '../ui/Button';
@@ -11,6 +11,7 @@ import { Modal } from '../ui/Modal';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import ApiService from '../../services/api';
 import type { User, Polisher, BagType, Product } from '../../types';
+import { useNavigate } from 'react-router-dom';
 
 interface CrudField {
   name: string;
@@ -25,7 +26,8 @@ interface CrudPageProps {
   entityType: string;
   entityName: string;
   fields: CrudField[];
-  validationSchema: any;
+  // Can be a static Yup schema, or a factory that returns a schema based on edit mode
+  validationSchema: any | ((isEdit: boolean) => any);
 }
 
 export function CrudPage({ entityType, entityName, fields, validationSchema }: CrudPageProps) {
@@ -36,9 +38,15 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingEntity, setEditingEntity] = useState<any | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const navigate = useNavigate();
 
-  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm({
-    resolver: yupResolver(validationSchema),
+  // Support dynamic schema based on whether we are editing or creating
+  const computedSchema = typeof validationSchema === 'function'
+    ? validationSchema(!!editingEntity)
+    : validationSchema;
+
+  const { register, handleSubmit, formState: { errors }, reset, setValue, setError } = useForm({
+    resolver: yupResolver(computedSchema),
   });
 
   // Load entities
@@ -104,6 +112,20 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
   const onSubmit = async (data: any) => {
     setIsSubmitting(true);
     try {
+      // Special case: user creation requires password, but updates don't
+      if (entityType === 'user' && !editingEntity) {
+        if (!data.password || String(data.password).trim().length === 0) {
+          setError('password' as any, { type: 'required', message: 'Password is required' } as any);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Handle dateOfBirth to ensure it's sent as YYYY-MM-DD string
+      if (data.dateOfBirth && typeof data.dateOfBirth !== 'string') {
+        data.dateOfBirth = data.dateOfBirth.toISOString().split('T')[0];
+      }
+
       let newEntity;
       
       if (editingEntity) {
@@ -170,11 +192,21 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
       // Handle special field mappings
       if (field.name === 'username' && entity.userName) {
         value = entity.userName;
-      } else if (field.name === 'dateOfBirth' && entity.age) {
-        // Calculate approximate birth year from age
-        const currentYear = new Date().getFullYear();
-        const birthYear = currentYear - entity.age;
-        value = `${birthYear}-01-01`;
+      } else if (field.name === 'dateOfBirth') {
+        if (entity.dateOfBirth) {
+          // Handle date properly to avoid timezone issues
+          if (typeof entity.dateOfBirth === 'string' && entity.dateOfBirth.includes('T')) {
+            // If it's an ISO string, extract just the date part
+            value = entity.dateOfBirth.split('T')[0];
+          } else if (typeof entity.dateOfBirth === 'string') {
+            // If it's already in YYYY-MM-DD format
+            value = entity.dateOfBirth;
+          } else {
+            // If it's a Date object, use toISOString and extract date part
+            const d = new Date(entity.dateOfBirth);
+            value = d.toISOString().split('T')[0];
+          }
+        }
       } else if (field.name === 'role' && field.options) {
         // For role field, try to find the role ID from the role name
         const roleOption = field.options.find(option => option.label === entity.role);
@@ -218,12 +250,15 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
   };
 
   const renderField = (field: CrudField) => {
+    // For password field, required only when creating (no editingEntity)
+    const isPassword = field.type === 'password' || field.name === 'password';
+    const isRequired = isPassword ? !editingEntity : field.required;
     if (field.type === 'select' && field.options) {
       return (
         <Select
           key={field.name}
           label={field.label}
-          required={field.required}
+          required={isRequired}
           options={field.options}
           {...register(field.name)}
           error={errors[field.name]?.message as string}
@@ -236,12 +271,43 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
         key={field.name}
         label={field.label}
         type={field.type}
-        required={field.required}
+        required={isRequired}
+        disabled={isPassword && !!editingEntity}
         step={field.type === 'number' ? '0.01' : undefined}
         {...register(field.name, field.type === 'number' ? { valueAsNumber: true } : {})}
         error={errors[field.name]?.message as string}
       />
     );
+  };
+
+  // Reset Password Modal state
+  const [resetUser, setResetUser] = useState<{ id: string; name: string } | null>(null);
+  const [resetPwd, setResetPwd] = useState('');
+  const [resetPwd2, setResetPwd2] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleResetPassword = async () => {
+    if (!resetUser) return;
+    if (resetPwd.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    if (resetPwd !== resetPwd2) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    try {
+      setIsResetting(true);
+  await ApiService.resetUserPassword(resetUser.id, resetPwd, resetPwd2);
+      toast.success('Password reset successfully');
+      setResetUser(null);
+      setResetPwd('');
+      setResetPwd2('');
+    } catch (e) {
+      toast.error('Failed to reset password');
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   return (
@@ -336,7 +402,7 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
                         <td key={field.name} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {field.type === 'password' ? '••••••••' : 
                            field.name === 'username' && entity.userName ? entity.userName :
-                           field.name === 'dateOfBirth' && entity.age ? `Age: ${entity.age}` :
+                           field.name === 'dateOfBirth' ? (entity.dateOfBirth || 'N/A') :
                            field.name === 'role' && field.options ? 
                              (field.options.find(opt => opt.value === entity.role)?.label || entity.role) :
                            (entity[field.name] || 'N/A')}
@@ -344,6 +410,16 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
                       ))}
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end space-x-2">
+                          {entityType === 'user' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Reset Password"
+                              onClick={() => setResetUser({ id: entity.id, name: entity.userName || entity.firstName || entity.id })}
+                            >
+                              <Key size={16} className="text-indigo-600" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
@@ -397,6 +473,38 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
               onClick={() => deleteConfirm && handleDelete(deleteConfirm.id)}
             >
               Delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Reset Password Modal */}
+      <Modal
+        isOpen={!!resetUser}
+        onClose={() => setResetUser(null)}
+        title={`Reset Password${resetUser ? ` for ${resetUser.name}` : ''}`}
+      >
+        <div className="space-y-4">
+          <Input
+            label="New Password"
+            type="password"
+            value={resetPwd}
+            onChange={(e: any) => setResetPwd(e.target.value)}
+            required
+          />
+          <Input
+            label="Confirm New Password"
+            type="password"
+            value={resetPwd2}
+            onChange={(e: any) => setResetPwd2(e.target.value)}
+            required
+          />
+          <div className="flex space-x-3 justify-end">
+            <Button variant="secondary" onClick={() => setResetUser(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleResetPassword}>
+              Reset Password
             </Button>
           </div>
         </div>
