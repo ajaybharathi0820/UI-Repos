@@ -260,6 +260,7 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
   const renderField = (field: CrudField) => {
     // For password field, required only when creating (no editingEntity)
     const isPassword = field.type === 'password' || field.name === 'password';
+    const isUsername = field.name === 'username';
     const isRequired = isPassword ? !editingEntity : field.required;
     
     if (field.type === 'select' && field.options) {
@@ -294,6 +295,7 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
         label={field.label}
         type={field.type}
         required={isRequired}
+        disabled={isUsername && !!editingEntity && entityType === 'user'}
         step={field.type === 'number' ? '0.01' : undefined}
         {...register(field.name, {
           ...(field.type === 'number' ? { valueAsNumber: true } : {}),
