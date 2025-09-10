@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'sonner';
 import { Layout } from '../../components/layout/Layout';
-import { Input } from '../../components/ui/Input';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { Button } from '../../components/ui/Button';
 import ApiService from '../../services/api';
 
@@ -60,25 +60,22 @@ export function ChangePasswordPage() {
           
           <div className="p-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <Input
+              <PasswordInput
                 label="Current Password"
-                type="password"
                 required
                 {...register('currentPassword')}
                 error={errors.currentPassword?.message}
               />
 
-              <Input
+              <PasswordInput
                 label="New Password"
-                type="password"
                 required
                 {...register('newPassword')}
                 error={errors.newPassword?.message}
               />
 
-              <Input
+              <PasswordInput
                 label="Confirm New Password"
-                type="password"
                 required
                 {...register('confirmPassword')}
                 error={errors.confirmPassword?.message}
@@ -94,7 +91,7 @@ export function ChangePasswordPage() {
                 </Button>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="secondary"
                   onClick={() => reset()}
                   className="flex-1"
                 >

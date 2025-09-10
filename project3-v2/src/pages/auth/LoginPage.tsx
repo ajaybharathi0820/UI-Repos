@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -6,6 +6,7 @@ import * as yup from 'yup';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
 import { Input } from '../../components/ui/Input';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import { Button } from '../../components/ui/Button';
 import ApiService from '../../services/api';
 
@@ -105,9 +106,8 @@ export function LoginPage() {
               error={errors.username?.message}
             />
 
-            <Input
+            <PasswordInput
               label="Password"
-              type="password"
               autoComplete="current-password"
               required
               {...register('password')}

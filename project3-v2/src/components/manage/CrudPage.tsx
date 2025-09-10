@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Edit2, Trash2, Plus, Search, Key, X } from 'lucide-react';
@@ -6,13 +6,13 @@ import { toast } from 'sonner';
 import { Layout } from '../layout/Layout';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
+import { PasswordInput } from '../ui/PasswordInput';
 import { Select } from '../ui/Select';
 import { Modal } from '../ui/Modal';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { Pagination } from '../ui/Pagination';
 import ApiService from '../../services/api';
-import type { User, Polisher, BagType, Product } from '../../types';
-import { useNavigate } from 'react-router-dom';
+import { formatDateForDisplay, formatDateForInput, formatDateForAPI } from '../../utils/dateFormatter';
 
 interface CrudField {
   name: string;
@@ -43,8 +43,6 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  
-  const navigate = useNavigate();
 
   // Support dynamic schema based on whether we are editing or creating
   const computedSchema = typeof validationSchema === 'function'
@@ -59,7 +57,7 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
   const loadEntities = async () => {
     setIsLoading(true);
     try {
-      let data;
+      let data: any;
       switch (entityType) {
         case 'user':
           data = await ApiService.getUsers();
@@ -135,12 +133,12 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
         }
       }
 
-      // Handle dateOfBirth to ensure it's sent as YYYY-MM-DD string
-      if (data.dateOfBirth && typeof data.dateOfBirth !== 'string') {
-        data.dateOfBirth = data.dateOfBirth.toISOString().split('T')[0];
+      // Handle dateOfBirth to ensure it's sent as YYYY-MM-DD string without timezone issues
+      if (data.dateOfBirth) {
+        data.dateOfBirth = formatDateForAPI(data.dateOfBirth);
       }
 
-      let newEntity;
+      let newEntity: any;
       
       if (editingEntity) {
         // Update existing entity
@@ -213,18 +211,8 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
         value = entity.userName;
       } else if (field.name === 'dateOfBirth') {
         if (entity.dateOfBirth) {
-          // Handle date properly to avoid timezone issues
-          if (typeof entity.dateOfBirth === 'string' && entity.dateOfBirth.includes('T')) {
-            // If it's an ISO string, extract just the date part
-            value = entity.dateOfBirth.split('T')[0];
-          } else if (typeof entity.dateOfBirth === 'string') {
-            // If it's already in YYYY-MM-DD format
-            value = entity.dateOfBirth;
-          } else {
-            // If it's a Date object, use toISOString and extract date part
-            const d = new Date(entity.dateOfBirth);
-            value = d.toISOString().split('T')[0];
-          }
+          // Use the utility function to format date for input
+          value = formatDateForInput(entity.dateOfBirth);
         }
       } else if (field.name === 'role' && field.options) {
         // For role field, try to find the role ID from the role name
@@ -273,6 +261,7 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
     // For password field, required only when creating (no editingEntity)
     const isPassword = field.type === 'password' || field.name === 'password';
     const isRequired = isPassword ? !editingEntity : field.required;
+    
     if (field.type === 'select' && field.options) {
       return (
         <Select
@@ -286,15 +275,30 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
       );
     }
 
+    if (isPassword) {
+      return (
+        <PasswordInput
+          key={field.name}
+          label={field.label}
+          required={isRequired}
+          disabled={!!editingEntity}
+          {...register(field.name)}
+          error={errors[field.name]?.message as string}
+        />
+      );
+    }
+
     return (
       <Input
         key={field.name}
         label={field.label}
         type={field.type}
         required={isRequired}
-        disabled={isPassword && !!editingEntity}
         step={field.type === 'number' ? '0.01' : undefined}
-        {...register(field.name, field.type === 'number' ? { valueAsNumber: true } : {})}
+        {...register(field.name, {
+          ...(field.type === 'number' ? { valueAsNumber: true } : {}),
+          ...(field.type === 'date' ? { valueAsDate: false } : {}) // Ensure dates come as strings
+        })}
         error={errors[field.name]?.message as string}
       />
     );
@@ -304,7 +308,6 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
   const [resetUser, setResetUser] = useState<{ id: string; name: string } | null>(null);
   const [resetPwd, setResetPwd] = useState('');
   const [resetPwd2, setResetPwd2] = useState('');
-  const [isResetting, setIsResetting] = useState(false);
 
   const handleResetPassword = async () => {
     if (!resetUser) return;
@@ -317,7 +320,6 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
       return;
     }
     try {
-      setIsResetting(true);
   await ApiService.resetUserPassword(resetUser.id, resetPwd, resetPwd2);
       toast.success('Password reset successfully');
       setResetUser(null);
@@ -326,8 +328,6 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to reset password';
       toast.error(message);
-    } finally {
-      setIsResetting(false);
     }
   };
 
@@ -450,7 +450,7 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
                           <td key={field.name} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {field.type === 'password' ? '••••••••' : 
                              field.name === 'username' && entity.userName ? entity.userName :
-                             field.name === 'dateOfBirth' ? (entity.dateOfBirth || 'N/A') :
+                             field.type === 'date' || field.name === 'dateOfBirth' ? formatDateForDisplay(entity[field.name]) :
                              field.name === 'role' && field.options ? 
                                (field.options.find(opt => opt.value === entity.role)?.label || entity.role) :
                              (entity[field.name] || 'N/A')}
@@ -542,16 +542,14 @@ export function CrudPage({ entityType, entityName, fields, validationSchema }: C
         title={`Reset Password${resetUser ? ` for ${resetUser.name}` : ''}`}
       >
         <div className="space-y-4">
-          <Input
+          <PasswordInput
             label="New Password"
-            type="password"
             value={resetPwd}
             onChange={(e: any) => setResetPwd(e.target.value)}
             required
           />
-          <Input
+          <PasswordInput
             label="Confirm New Password"
-            type="password"
             value={resetPwd2}
             onChange={(e: any) => setResetPwd2(e.target.value)}
             required
