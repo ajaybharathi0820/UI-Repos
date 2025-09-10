@@ -12,6 +12,7 @@ import { PolisherPage } from './pages/manage/PolisherPage';
 import { UserPage } from './pages/manage/UserPage';
 import { BagTypePage } from './pages/manage/BagTypePage';
 import { ItemsPage } from './pages/manage/ItemsPage';
+import { BluetoothTestPage } from './pages/BluetoothTestPage';
 
 function App() {
   return (
@@ -63,6 +64,11 @@ function App() {
             <Route path="/manage/items" element={
               <ProtectedRoute>
                 <ItemsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/bluetooth-test" element={
+              <ProtectedRoute>
+                <BluetoothTestPage />
               </ProtectedRoute>
             } />
             <Route path="*" element={<Navigate to="/" replace />} />

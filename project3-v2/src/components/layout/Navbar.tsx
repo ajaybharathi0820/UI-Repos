@@ -71,6 +71,17 @@ export function Navbar() {
               </Link>
             </div>
 
+            <Link
+              to="/bluetooth-test"
+              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                isActive('/bluetooth-test') 
+                  ? 'text-blue-600 bg-blue-50' 
+                  : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+              }`}
+            >
+              Scale Test
+            </Link>
+
             {/* User Profile Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
@@ -80,7 +91,7 @@ export function Navbar() {
                 <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center">
                   <User size={16} className="text-white" />
                 </div>
-                <span>{user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}</span>
+                <span>{user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.userName}</span>
                 <ChevronDown size={16} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
