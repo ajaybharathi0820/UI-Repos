@@ -89,9 +89,9 @@ export interface ProductFormData {
 }
 
 export interface ApiResponse<T> {
-  data: T;
-  message: string;
-  status: 'success' | 'error';
+  success: boolean;
+  data?: T;
+  errors?: string[];
 }
 
 export interface ApiError {

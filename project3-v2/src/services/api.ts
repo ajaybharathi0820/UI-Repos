@@ -10,7 +10,8 @@ import type {
   ProductFormData,
   LoginRequest,
   LoginResponse,
-  Role
+  Role,
+  ApiResponse
 } from '../types';
 
 export class ApiService {
@@ -57,6 +58,7 @@ export class ApiService {
             window.location.replace(redirectUrl);
           }
         }
+        
         const errorText = await response.text();
         console.error(`API Error Response:`, errorText);
         
@@ -67,7 +69,36 @@ export class ApiService {
           errorData = { message: errorText || 'Request failed' };
         }
         
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        // Handle ApiResponse<T> error format
+        if (errorData && typeof errorData === 'object') {
+          // Check if it's an ApiResponse<T> with Success=false and Errors array
+          if ('success' in errorData && errorData.success === false && 'errors' in errorData) {
+            const errors = errorData.errors;
+            if (Array.isArray(errors) && errors.length > 0) {
+              // Join multiple error messages with newlines
+              const errorMessage = errors.join('\n');
+              throw new Error(errorMessage);
+            }
+          }
+          
+          // Check for other common error formats
+          if (errorData.message) {
+            throw new Error(errorData.message);
+          }
+          
+          // Check for ProblemDetails format (title property)
+          if (errorData.title) {
+            throw new Error(errorData.title);
+          }
+          
+          // Check for detail property in ProblemDetails
+          if (errorData.detail) {
+            throw new Error(errorData.detail);
+          }
+        }
+        
+        // Fallback to generic HTTP error message
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       // Handle 204 No Content or empty bodies gracefully
@@ -89,6 +120,15 @@ export class ApiService {
           parsed = JSON.parse(rawText);
         } catch {
           // If JSON parsing fails, keep raw text
+        }
+      }
+
+      // Handle ApiResponse<T> success format first
+      if (parsed && typeof parsed === 'object') {
+        // Check if it's an ApiResponse<T> with Success=true and Data property
+        if ('success' in parsed && parsed.success === true && 'data' in parsed) {
+          console.log(`API Response for ${endpoint}:`, parsed.data);
+          return parsed.data as T;
         }
       }
 
