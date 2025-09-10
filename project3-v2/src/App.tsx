@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'sonner';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminRoute } from './components/AdminRoute';
 import { LoginPage } from './pages/auth/LoginPage';
 import { ChangePasswordPage } from './pages/auth/ChangePasswordPage';
 import { HomePage } from './pages/home/HomePage';
@@ -42,27 +43,37 @@ function App() {
             } />
             <Route path="/manage" element={
               <ProtectedRoute>
-                <ManagePage />
+                <AdminRoute>
+                  <ManagePage />
+                </AdminRoute>
               </ProtectedRoute>
             } />
             <Route path="/manage/polisher" element={
               <ProtectedRoute>
-                <PolisherPage />
+                <AdminRoute>
+                  <PolisherPage />
+                </AdminRoute>
               </ProtectedRoute>
             } />
             <Route path="/manage/user" element={
               <ProtectedRoute>
-                <UserPage />
+                <AdminRoute>
+                  <UserPage />
+                </AdminRoute>
               </ProtectedRoute>
             } />
             <Route path="/manage/bag-type" element={
               <ProtectedRoute>
-                <BagTypePage />
+                <AdminRoute>
+                  <BagTypePage />
+                </AdminRoute>
               </ProtectedRoute>
             } />
             <Route path="/manage/items" element={
               <ProtectedRoute>
-                <ItemsPage />
+                <AdminRoute>
+                  <ItemsPage />
+                </AdminRoute>
               </ProtectedRoute>
             } />
             <Route path="*" element={<Navigate to="/" replace />} />

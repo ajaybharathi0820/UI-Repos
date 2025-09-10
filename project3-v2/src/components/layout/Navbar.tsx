@@ -1,10 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, User, Lock, LogOut, Settings } from 'lucide-react';
+import { ChevronDown, User, Lock, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useRole } from '../RoleGuard';
 
 export function Navbar() {
   const { user, logout } = useAuth();
+  const { isAdmin } = useRole();
   const navigate = useNavigate();
   const location = useLocation();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -58,18 +60,21 @@ export function Navbar() {
               Home
             </Link>
             
-            <div className="relative">
-              <Link
-                to="/manage"
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  location.pathname.startsWith('/manage')
-                    ? 'text-blue-600 bg-blue-50' 
-                    : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
-                }`}
-              >
-                Manage
-              </Link>
-            </div>
+            {/* Show Manage only for Admin users */}
+            {isAdmin() && (
+              <div className="relative">
+                <Link
+                  to="/manage"
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    location.pathname.startsWith('/manage')
+                      ? 'text-blue-600 bg-blue-50' 
+                      : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Manage
+                </Link>
+              </div>
+            )}
 
             {/* User Profile Dropdown */}
             <div className="relative" ref={dropdownRef}>
@@ -80,7 +85,16 @@ export function Navbar() {
                 <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center">
                   <User size={16} className="text-white" />
                 </div>
-                <span>{user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username}</span>
+                <div className="flex flex-col items-start">
+                  <span>{user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.userName}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    user?.role === 'Admin' 
+                      ? 'bg-blue-100 text-blue-800' 
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {user?.role}
+                  </span>
+                </div>
                 <ChevronDown size={16} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
